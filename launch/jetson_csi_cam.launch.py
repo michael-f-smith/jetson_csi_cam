@@ -45,6 +45,10 @@ def generate_launch_description():
             'encoding', default_value='jpeg',
             description='Image encoding: raw (uncompressed BGR) or jpeg (hardware JPEG via nvjpegenc)'
         ),
+        DeclareLaunchArgument(
+            'jpeg_quality', default_value='75',
+            description='JPEG quality 1-100 (lower = smaller frames, less network traffic)'
+        ),
 
         OpaqueFunction(function=lambda context: _launch_nodes(context)),
     ])
@@ -57,6 +61,7 @@ def _launch_nodes(context):
     sync_sink = context.launch_configurations['sync_sink'].lower() in ('true', '1', 'yes')
     pipeline = context.launch_configurations['pipeline']
     encoding = context.launch_configurations['encoding']
+    jpeg_quality = context.launch_configurations['jpeg_quality']
 
     if not pipeline:
         width = context.launch_configurations['width']
@@ -67,7 +72,7 @@ def _launch_nodes(context):
             pipeline = (
                 f'nvarguscamerasrc sensor-id={sensor_id} ! '
                 f'video/x-raw(memory:NVMM),width={width},height={height},framerate={fps}/1 ! '
-                f'nvjpegenc ! image/jpeg'
+                f'nvjpegenc quality={jpeg_quality} ! image/jpeg'
             )
         else:
             pipeline = (
@@ -85,6 +90,7 @@ def _launch_nodes(context):
 
     remappings = [
         ('/set_camera_info', [cam_name, '/set_camera_info']),
+        ('camera/camera_info', [cam_name, '/camera_info']),
     ]
 
     if encoding == 'jpeg':
