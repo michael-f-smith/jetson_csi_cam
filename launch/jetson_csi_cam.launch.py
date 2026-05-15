@@ -1,0 +1,105 @@
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            'sensor_id', default_value='0',
+            description='Sensor ID of the camera'
+        ),
+        DeclareLaunchArgument(
+            'cam_name', default_value='csi_cam_0',
+            description='Name of the camera (corresponds to camera info)'
+        ),
+        DeclareLaunchArgument(
+            'frame_id', default_value='csi_cam_0_link',
+            description='TF frame ID for the camera'
+        ),
+        DeclareLaunchArgument(
+            'sync_sink', default_value='false',
+            description='Synchronize the app sink'
+        ),
+        DeclareLaunchArgument(
+            'width', default_value='1920',
+            description='Image width'
+        ),
+        DeclareLaunchArgument(
+            'height', default_value='1080',
+            description='Image height'
+        ),
+        DeclareLaunchArgument(
+            'fps', default_value='30',
+            description='Desired framerate'
+        ),
+        DeclareLaunchArgument(
+            'camera_device', default_value='/dev/video0',
+            description='V4L2 camera device path'
+        ),
+        DeclareLaunchArgument(
+            'pipeline', default_value='',
+            description='Full GStreamer pipeline (overrides auto-generated one)'
+        ),
+        DeclareLaunchArgument(
+            'encoding', default_value='jpeg',
+            description='Image encoding: raw (uncompressed BGR) or jpeg (hardware JPEG via nvjpegenc)'
+        ),
+
+        OpaqueFunction(function=lambda context: _launch_nodes(context)),
+    ])
+
+
+def _launch_nodes(context):
+    cam_name = context.launch_configurations['cam_name']
+    frame_id = context.launch_configurations['frame_id']
+    sensor_id = context.launch_configurations['sensor_id']
+    sync_sink = context.launch_configurations['sync_sink'].lower() in ('true', '1', 'yes')
+    pipeline = context.launch_configurations['pipeline']
+    encoding = context.launch_configurations['encoding']
+
+    if not pipeline:
+        width = context.launch_configurations['width']
+        height = context.launch_configurations['height']
+        fps = context.launch_configurations['fps']
+
+        if encoding == 'jpeg':
+            pipeline = (
+                f'nvarguscamerasrc sensor-id={sensor_id} ! '
+                f'video/x-raw(memory:NVMM),width={width},height={height},framerate={fps}/1 ! '
+                f'nvjpegenc ! image/jpeg'
+            )
+        else:
+            pipeline = (
+                f'nvarguscamerasrc sensor-id={sensor_id} ! '
+                f'video/x-raw(memory:NVMM),width={width},height={height},framerate={fps}/1 ! '
+                f'nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw,format=BGR'
+            )
+
+    parameters = {
+        'camera_name': cam_name,
+        'frame_id': frame_id,
+        'sync_sink': sync_sink,
+        'gscam_config': pipeline,
+    }
+
+    remappings = [
+        ('/set_camera_info', [cam_name, '/set_camera_info']),
+    ]
+
+    if encoding == 'jpeg':
+        parameters['image_encoding'] = 'jpeg'
+        remappings.append(('camera/image_raw/compressed', [cam_name, '/image_raw/compressed']))
+    else:
+        remappings.append(('camera/image_raw', [cam_name, '/image_raw']))
+
+    node = Node(
+        package='gscam',
+        executable='gscam_node',
+        name=cam_name,
+        output='screen',
+        parameters=[parameters],
+        remappings=remappings,
+    )
+
+    return [node]
