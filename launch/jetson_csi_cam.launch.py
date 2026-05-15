@@ -99,7 +99,9 @@ def _launch_nodes(context):
     else:
         remappings.append(('camera/image_raw', [cam_name, '/image_raw']))
 
-    node = Node(
+    nodes = []
+
+    gscam_node = Node(
         package='gscam',
         executable='gscam_node',
         name=cam_name,
@@ -107,5 +109,21 @@ def _launch_nodes(context):
         parameters=[parameters],
         remappings=remappings,
     )
+    nodes.append(gscam_node)
 
-    return [node]
+    if encoding == 'jpeg':
+        raw_topic = [cam_name, '/image_raw']
+        repub = Node(
+            package='image_transport',
+            executable='republish',
+            name=[cam_name, '_republish'],
+            arguments=['compressed', 'raw'],
+            remappings=[
+                ('in/compressed', [cam_name, '/image_raw/compressed']),
+                ('out', raw_topic),
+            ],
+            output='screen',
+        )
+        nodes.append(repub)
+
+    return nodes
