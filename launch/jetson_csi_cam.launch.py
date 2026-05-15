@@ -91,6 +91,7 @@ def _launch_nodes(context):
         'frame_id': frame_id,
         'sync_sink': sync_sink,
         'gscam_config': pipeline,
+        'camera_info_url': f'package://jetson_csi_cam/calib/{cam_name}.yaml',
     }
 
     remappings = [
