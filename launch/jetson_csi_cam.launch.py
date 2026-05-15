@@ -18,6 +18,10 @@ def generate_launch_description():
             description='TF frame ID for the camera'
         ),
         DeclareLaunchArgument(
+            'parent_frame', default_value='map',
+            description='Parent TF frame for the camera'
+        ),
+        DeclareLaunchArgument(
             'sync_sink', default_value='false',
             description='Synchronize the app sink'
         ),
@@ -57,6 +61,7 @@ def generate_launch_description():
 def _launch_nodes(context):
     cam_name = context.launch_configurations['cam_name']
     frame_id = context.launch_configurations['frame_id']
+    parent_frame = context.launch_configurations['parent_frame']
     sensor_id = context.launch_configurations['sensor_id']
     sync_sink = context.launch_configurations['sync_sink'].lower() in ('true', '1', 'yes')
     pipeline = context.launch_configurations['pipeline']
@@ -111,19 +116,13 @@ def _launch_nodes(context):
     )
     nodes.append(gscam_node)
 
-    if encoding == 'jpeg':
-        raw_topic = [cam_name, '/image_raw']
-        repub = Node(
-            package='image_transport',
-            executable='republish',
-            name=[cam_name, '_republish'],
-            arguments=['compressed', 'raw'],
-            remappings=[
-                ('in/compressed', [cam_name, '/image_raw/compressed']),
-                ('out', raw_topic),
-            ],
-            output='screen',
-        )
-        nodes.append(repub)
+    tf_node = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name=[cam_name, '_tf'],
+        arguments=['0', '0', '0', '0', '0', '0', parent_frame, frame_id],
+        output='screen',
+    )
+    nodes.append(tf_node)
 
     return nodes
